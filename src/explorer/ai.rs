@@ -12,6 +12,7 @@ use std::collections::HashSet;
 use common_game::components::resource::{BasicResourceType, ComplexResourceRequest, ComplexResourceType, GenericResource, ResourceType};
 use crate::explorer::mapping::{Mapping, PlanetNodeId};
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExplorerId(pub(crate) u32);
 

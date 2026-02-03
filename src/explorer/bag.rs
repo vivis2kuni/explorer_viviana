@@ -3,6 +3,7 @@ use common_game::components::resource::{
 };
 use std::collections::HashMap;
 
+
 /// Alias per la bag dell'explorer
 pub type BagContent = ExplorerResources;
 

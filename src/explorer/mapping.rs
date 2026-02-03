@@ -7,6 +7,7 @@ use common_game::components::resource::{
     ResourceType,
 };
 
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Ord, PartialOrd)]
 pub struct PlanetNodeId(pub u32);

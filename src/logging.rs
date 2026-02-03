@@ -6,6 +6,7 @@
 use common_game::logging::{LogEvent, Participant, ActorType, EventType, Channel, Payload};
 use crate::explorer::ai::ExplorerId;
 
+
 /// Logs a general structured event from an Explorer
 pub fn log_explorer_event(
     explorer_id: ExplorerId,

@@ -1,5 +1,6 @@
 mod explorer;
 mod logging;
+mod tests;
 /*
 pub fn create_explorer(
     id: u32,
