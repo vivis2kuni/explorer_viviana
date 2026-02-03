@@ -6,11 +6,10 @@ use common_game::protocols::planet_explorer::{
 use common_game::protocols::orchestrator_explorer::{
     OrchestratorToExplorer, ExplorerToOrchestrator,
 };
-use common_game::utils::ID;
 use crossbeam_channel::{Receiver, Sender, select, SendError};
 use std::collections::HashSet;
 use common_game::components::resource::{BasicResourceType, ComplexResourceRequest, ComplexResourceType, GenericResource, ResourceType};
-use crate::explorer::mapping::{Mapping, PlanetNodeId};
+pub(crate) use crate::explorer::mapping::{Mapping, PlanetNodeId};
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -63,13 +62,13 @@ impl Explorer {
             select! {
                 recv(self.rx_orchestrator) -> msg => {
                     if let Ok(message) = msg {
-                        log_orchestrator_message(self.id, &format!("{message:?}"));
+                        log_orchestrator_message(0, self.id, &format!("{message:?}"));
                         self.handle_orchestrator_message(message);
                     }
                 }
                 recv(self.rx_planet) -> msg => {
                     if let Ok(message) = msg {
-                        log_planet_message(self.id, &format!("{message:?}"));
+                        log_planet_message(self.mapping.explorer_position.0, self.id, &format!("{message:?}"));
                         self.handle_planet_message(message);
                     }
                 }
