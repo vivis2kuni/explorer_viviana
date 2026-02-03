@@ -1,6 +1,6 @@
 mod explorer;
 mod logging;
-
+/*
 pub fn create_explorer(
     id: u32,
     rx_orchestrator: crossbeam_channel::Receiver<common_game::protocols::orchestrator_explorer::OrchestratorToExplorer>,
@@ -47,3 +47,4 @@ pub fn create_explorer(
 
     Ok(explorer)
 }
+*/
