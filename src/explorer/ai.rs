@@ -6,8 +6,8 @@ use common_game::protocols::planet_explorer::{
 use common_game::protocols::orchestrator_explorer::{
     OrchestratorToExplorer, ExplorerToOrchestrator,
 };
-use crossbeam_channel::{Receiver, Sender, select, SendError};
-use std::collections::HashSet;
+use crossbeam_channel::{Receiver, Sender, select};
+use std::ops::Deref;
 use common_game::components::resource::{BasicResourceType, ComplexResourceRequest, ComplexResourceType, GenericResource, ResourceType};
 pub(crate) use crate::explorer::mapping::{Mapping, PlanetNodeId};
 
@@ -33,6 +33,7 @@ pub struct Explorer {
     tx_planet: Sender<ExplorerToPlanet>,
     bag: BagContent,
     running: bool,
+    alive : bool,
     mapping: Mapping
 }
 
@@ -53,12 +54,16 @@ impl Explorer {
             tx_planet,
             bag: BagContent::default(),
             running: false,
+            alive : true,
             mapping: Mapping::new(starting_planet),
         })
     }
 
     pub fn run(&mut self) {
         loop {
+            if !self.alive {
+                break;
+            }
             select! {
                 recv(self.rx_orchestrator) -> msg => {
                     if let Ok(message) = msg {
@@ -229,17 +234,17 @@ impl Explorer {
                         //change state to final
                     }
                 }
-
-
             }
             MoveToPlanet { sender_to_new_planet, planet_id } => {
                 if let Some(sender) = sender_to_new_planet {
                     self.tx_planet = sender; // aggiorna il canale attivo
                     self.mapping.set_explorer_position(PlanetNodeId(planet_id.into()));
+                }else{
+                    self.mapping.remove_planet(PlanetNodeId(planet_id.into()));
                 }
             }
             ResetExplorerAI => {
-
+                self.mapping = Mapping::new(self.mapping.explorer_position.0);
             }
             KillExplorer => {
                 let _ = self.tx_orchestrator.send(
@@ -247,6 +252,8 @@ impl Explorer {
                         explorer_id: self.id.0,
                     }
                 );
+                self.alive = false;
+                let _ = self.deref();
             }
         }
     }
