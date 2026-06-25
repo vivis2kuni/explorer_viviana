@@ -194,7 +194,16 @@ impl Explorer {
                     common_game::logging::Channel::Debug,
                 );
 
-                let _ = self.send_combine_request(to_generate);
+                if !self.send_combine_request(to_generate) {
+                    let _ = self.tx_orchestrator.send(
+                        ExplorerToOrchestrator::CombineResourceResponse {
+                            explorer_id: self.id.0,
+                            generated: Err(format!(
+                                "Cannot create complex resource: {to_generate:?}"
+                            )),
+                        },
+                    );
+                }
             }
 
             CurrentPlanetRequest => {
@@ -248,6 +257,7 @@ impl Explorer {
                 planet_id,
             } => {
                 let planet_id_u32: u32 = planet_id.into();
+                let old_planet_id = self.mapping.explorer_position.0;
 
                 match sender_to_new_planet {
                     Some(sender) => {
@@ -257,7 +267,7 @@ impl Explorer {
 
                         log_travel(
                             self.id,
-                            self.mapping.explorer_position.0,
+                            old_planet_id,
                             planet_id_u32,
                             true,
                         );
@@ -277,7 +287,7 @@ impl Explorer {
 
                         log_travel(
                             self.id,
-                            self.mapping.explorer_position.0,
+                            old_planet_id,
                             planet_id_u32,
                             false,
                         );
@@ -298,6 +308,12 @@ impl Explorer {
                 self.mapping = Mapping::new(self.mapping.explorer_position.0);
                 self.bag = BagContent::default();
                 self.running = false;
+
+                let _ = self.tx_orchestrator.send(
+                    ExplorerToOrchestrator::ResetExplorerAIResult {
+                        explorer_id: self.id.0,
+                    },
+                );
             }
 
             KillExplorer => {
@@ -315,72 +331,100 @@ impl Explorer {
     fn handle_planet_message(&mut self, msg: PlanetToExplorer) {
         match msg {
             PlanetToExplorer::SupportedResourceResponse { resource_list } => {
+                let supported_resources = resource_list.clone();
+
                 self.mapping
                     .set_basic_resources_for_planet(resource_list);
+
+                let _ = self.tx_orchestrator.send(
+                    ExplorerToOrchestrator::SupportedResourceResult {
+                        explorer_id: self.id.0,
+                        supported_resources,
+                    },
+                );
             }
 
             PlanetToExplorer::SupportedCombinationResponse { combination_list } => {
+                let supported_combinations = combination_list.clone();
+
                 self.mapping
                     .set_complex_resources_for_planet(combination_list);
+
+                let _ = self.tx_orchestrator.send(
+                    ExplorerToOrchestrator::SupportedCombinationResult {
+                        explorer_id: self.id.0,
+                        combination_list: supported_combinations,
+                    },
+                );
             }
 
             PlanetToExplorer::GenerateResourceResponse { resource } => {
-                if !self.running {
-                    return;
-                }
-
                 match resource {
                     Some(resource) => {
-                        log_resource_generation_attempt(
-                            self.id,
-                            &format!("{:?}", resource.get_type()),
-                            true,
+                        self.bag.add_basic(resource);
+
+                        let _ = self.tx_orchestrator.send(
+                            ExplorerToOrchestrator::GenerateResourceResponse {
+                                explorer_id: self.id.0,
+                                generated: Ok(()),
+                            },
                         );
 
-                        self.bag.add_basic(resource);
-                        self.request_or_perform_next_action();
+                        if self.running {
+                            self.request_or_perform_next_action();
+                        }
                     }
 
                     None => {
-                        log_resource_generation_attempt(
-                            self.id,
-                            "unknown",
-                            false,
+                        let _ = self.tx_orchestrator.send(
+                            ExplorerToOrchestrator::GenerateResourceResponse {
+                                explorer_id: self.id.0,
+                                generated: Err(
+                                    "Planet could not generate requested resource".to_string(),
+                                ),
+                            },
                         );
 
-                        self.request_neighbors();
+                        if self.running {
+                            self.request_neighbors();
+                        }
                     }
                 }
             }
 
             PlanetToExplorer::CombineResourceResponse { complex_response } => {
-                if !self.running {
-                    return;
-                }
-
                 match complex_response {
                     Ok(complex_resource) => {
-                        log_resource_combination_attempt(
-                            self.id,
-                            &format!("{:?}", complex_resource.get_type()),
-                            true,
+                        self.bag.add_complex(complex_resource);
+
+                        let _ = self.tx_orchestrator.send(
+                            ExplorerToOrchestrator::CombineResourceResponse {
+                                explorer_id: self.id.0,
+                                generated: Ok(()),
+                            },
                         );
 
-                        self.bag.add_complex(complex_resource);
-                        self.request_or_perform_next_action();
+                        if self.running {
+                            self.request_or_perform_next_action();
+                        }
                     }
 
                     Err((_error, r1, r2)) => {
-                        log_resource_combination_attempt(
-                            self.id,
-                            "complex resource",
-                            false,
-                        );
-
                         self.add_generic_resource(r1);
                         self.add_generic_resource(r2);
 
-                        self.request_neighbors();
+                        let _ = self.tx_orchestrator.send(
+                            ExplorerToOrchestrator::CombineResourceResponse {
+                                explorer_id: self.id.0,
+                                generated: Err(
+                                    "Planet could not combine requested resource".to_string(),
+                                ),
+                            },
+                        );
+
+                        if self.running {
+                            self.request_neighbors();
+                        }
                     }
                 }
             }
