@@ -1,3 +1,3 @@
-mod mapping;
+pub(crate) mod mapping;
 pub(crate) mod ai;
-mod bag;
+pub(crate) mod bag;

@@ -366,6 +366,12 @@ impl Explorer {
                     Some(resource) => {
                         self.bag.add_basic(resource);
 
+                        log_resource_generation_attempt(
+                            self.id,
+                            "basic resource",
+                            true,
+                        );
+
                         let _ = self.tx_orchestrator.send(
                             ExplorerToOrchestrator::GenerateResourceResponse {
                                 explorer_id: self.id.0,
@@ -379,6 +385,12 @@ impl Explorer {
                     }
 
                     None => {
+                        log_resource_generation_attempt(
+                            self.id,
+                            "basic resource",
+                            false,
+                        );
+
                         let _ = self.tx_orchestrator.send(
                             ExplorerToOrchestrator::GenerateResourceResponse {
                                 explorer_id: self.id.0,
@@ -400,6 +412,12 @@ impl Explorer {
                     Ok(complex_resource) => {
                         self.bag.add_complex(complex_resource);
 
+                        log_resource_combination_attempt(
+                            self.id,
+                            "complex resource",
+                            true,
+                        );
+
                         let _ = self.tx_orchestrator.send(
                             ExplorerToOrchestrator::CombineResourceResponse {
                                 explorer_id: self.id.0,
@@ -415,6 +433,12 @@ impl Explorer {
                     Err((_error, r1, r2)) => {
                         self.add_generic_resource(r1);
                         self.add_generic_resource(r2);
+
+                        log_resource_combination_attempt(
+                            self.id,
+                            "complex resource",
+                            false,
+                        );
 
                         let _ = self.tx_orchestrator.send(
                             ExplorerToOrchestrator::CombineResourceResponse {
