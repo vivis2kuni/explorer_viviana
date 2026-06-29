@@ -3,13 +3,12 @@
 //! Provides standardized logging functions following the
 //! `common_game` logging protocol with Explorer-specific context.
 
-use std::collections::BTreeMap;
 
 use common_game::logging::{
     ActorType, Channel, EventType, LogEvent, Participant, Payload,
 };
 
-use crate::explorer::ai::{ExplorerId, Mapping};
+use crate::explorer::ai::ExplorerId;
 
 /// Logs a general structured event from an Explorer
 pub fn log_explorer_event(

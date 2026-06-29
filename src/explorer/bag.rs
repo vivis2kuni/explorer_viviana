@@ -4,9 +4,6 @@ use common_game::components::resource::{
 use std::collections::HashMap;
 
 
-/// Alias per la bag dell'explorer
-pub type BagContent = ExplorerResources;
-
 #[derive(Debug)]
 pub struct ExplorerResources {
     pub basic: HashMap<BasicResourceType, Vec<BasicResource>>,
@@ -69,41 +66,6 @@ impl ExplorerResources {
         types
     }
 
-
-    pub fn missing_resource_types(&self) -> Vec<ResourceType> {
-        use common_game::components::resource::*;
-
-        let mut missing = Vec::new();
-
-        let all_basic = vec![
-            BasicResourceType::Oxygen,
-            BasicResourceType::Hydrogen,
-            BasicResourceType::Carbon,
-            BasicResourceType::Silicon,
-        ];
-        for &b in &all_basic {
-            if !self.basic.contains_key(&b) || self.basic[&b].is_empty() {
-                missing.push(ResourceType::Basic(b));
-            }
-        }
-
-        let all_complex = vec![
-            ComplexResourceType::Diamond,
-            ComplexResourceType::Water,
-            ComplexResourceType::Life,
-            ComplexResourceType::Robot,
-            ComplexResourceType::Dolphin,
-            //ComplexResourceType::AIPartner,
-        ];
-        for &c in &all_complex {
-            if !self.complex.contains_key(&c) || self.complex[&c].is_empty() {
-                missing.push(ResourceType::Complex(c));
-            }
-        }
-
-        missing
-    }
-
     pub fn can_create_complex(&self, target: ComplexResourceType) -> bool {
         match target {
             ComplexResourceType::Water => {
@@ -133,5 +95,40 @@ impl ExplorerResources {
                 false
             }
         }
+    }
+
+    pub fn count_resource(&self, resource: ResourceType) -> usize {
+        match resource {
+            ResourceType::Basic(b) => self.count_basic(b),
+            ResourceType::Complex(c) => self.count_complex(c),
+        }
+    }
+
+    pub fn all_target_resources() -> Vec<ResourceType> {
+        vec![
+            ResourceType::Basic(BasicResourceType::Oxygen),
+            ResourceType::Basic(BasicResourceType::Hydrogen),
+            ResourceType::Basic(BasicResourceType::Carbon),
+            ResourceType::Basic(BasicResourceType::Silicon),
+
+            ResourceType::Complex(ComplexResourceType::Diamond),
+            ResourceType::Complex(ComplexResourceType::Water),
+            ResourceType::Complex(ComplexResourceType::Life),
+            ResourceType::Complex(ComplexResourceType::Robot),
+            ResourceType::Complex(ComplexResourceType::Dolphin),
+        ]
+    }
+
+    pub fn missing_resource_types_for_target(&self, target_count: usize) -> Vec<ResourceType> {
+        Self::all_target_resources()
+            .into_iter()
+            .filter(|resource| self.count_resource(*resource) < target_count)
+            .collect()
+    }
+
+    pub fn has_all_resources_at_least(&self, target_count: usize) -> bool {
+        Self::all_target_resources()
+            .into_iter()
+            .all(|resource| self.count_resource(resource) >= target_count)
     }
 }

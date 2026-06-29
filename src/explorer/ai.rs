@@ -60,6 +60,7 @@ pub struct Explorer {
     tx_planet: Sender<ExplorerToPlanet>,
 
     bag: BagContent,
+    target_count: usize,
     running: bool,
     alive: bool,
     mapping: Mapping,
@@ -81,6 +82,7 @@ impl Explorer {
             rx_planet,
             tx_planet,
             bag: BagContent::default(),
+            target_count: 1,
             running: false,
             alive: true,
             mapping: Mapping::new(starting_planet),
@@ -307,6 +309,7 @@ impl Explorer {
             ResetExplorerAI => {
                 self.mapping = Mapping::new(self.mapping.explorer_position.0);
                 self.bag = BagContent::default();
+                self.target_count = 1;
                 self.running = false;
 
                 let _ = self.tx_orchestrator.send(
@@ -485,46 +488,98 @@ impl Explorer {
             return;
         }
 
-        for resource in self.bag.missing_resource_types() {
-            if self.mapping.current_planet_can_produce(resource) {
-                match resource {
-                    ResourceType::Basic(basic_type) => {
-                        let _ = self.tx_planet.send(
-                            ExplorerToPlanet::GenerateResourceRequest {
-                                explorer_id: self.id.0,
-                                resource: basic_type,
-                            },
-                        );
-                        return;
-                    }
+        if self.bag.has_all_resources_at_least(self.target_count) {
+            self.target_count += 1;
 
-                    ResourceType::Complex(complex_type) => {
-                        if self.send_combine_request(complex_type) {
-                            return;
-                        }
+            log_explorer_event(
+                self.id,
+                format!(
+                    "All resources reached target. New target_count = {}",
+                    self.target_count
+                ),
+                common_game::logging::Channel::Info,
+            );
+        }
+
+        let missing = self
+            .bag
+            .missing_resource_types_for_target(self.target_count);
+
+        // 1. First priority: generate missing basic resources available on current planet
+        for resource in &missing {
+            if let ResourceType::Basic(basic_type) = resource {
+                if self.mapping.current_planet_can_produce(*resource) {
+                    let _ = self.tx_planet.send(
+                        ExplorerToPlanet::GenerateResourceRequest {
+                            explorer_id: self.id.0,
+                            resource: *basic_type,
+                        },
+                    );
+                    return;
+                }
+            }
+        }
+
+        // 2. Second priority: combine missing complex resources ONLY if ingredients are available
+        for resource in &missing {
+            if let ResourceType::Complex(complex_type) = resource {
+                if self.mapping.current_planet_can_produce(*resource)
+                    && self.bag.can_create_complex(*complex_type)
+                {
+                    if self.send_combine_request(*complex_type) {
+                        return;
                     }
                 }
             }
         }
 
-        for resource in self.bag.missing_resource_types() {
-            if let Some(destination) = self.mapping.next_hop_to_resource(resource) {
-                if destination == self.mapping.explorer_position {
+        // 3. Third priority: move toward missing basic resources
+        for resource in &missing {
+            if matches!(resource, ResourceType::Basic(_)) {
+                if let Some(destination) = self.mapping.next_hop_to_resource(*resource) {
+                    if destination == self.mapping.explorer_position {
+                        continue;
+                    }
+
+                    let _ = self.tx_orchestrator.send(
+                        ExplorerToOrchestrator::TravelToPlanetRequest {
+                            explorer_id: self.id.0,
+                            current_planet_id: self.mapping.explorer_position.0,
+                            dst_planet_id: destination.0,
+                        },
+                    );
+
+                    return;
+                }
+            }
+        }
+
+        // 4. Fourth priority: move toward complex resources only when ingredients are ready
+        for resource in &missing {
+            if let ResourceType::Complex(complex_type) = resource {
+                if !self.bag.can_create_complex(*complex_type) {
                     continue;
                 }
 
-                let _ = self.tx_orchestrator.send(
-                    ExplorerToOrchestrator::TravelToPlanetRequest {
-                        explorer_id: self.id.0,
-                        current_planet_id: self.mapping.explorer_position.0,
-                        dst_planet_id: destination.0,
-                    },
-                );
+                if let Some(destination) = self.mapping.next_hop_to_resource(*resource) {
+                    if destination == self.mapping.explorer_position {
+                        continue;
+                    }
 
-                return;
+                    let _ = self.tx_orchestrator.send(
+                        ExplorerToOrchestrator::TravelToPlanetRequest {
+                            explorer_id: self.id.0,
+                            current_planet_id: self.mapping.explorer_position.0,
+                            dst_planet_id: destination.0,
+                        },
+                    );
+
+                    return;
+                }
             }
         }
 
+        // 5. If nothing useful is known, ask for neighbors and continue mapping
         self.request_neighbors();
     }
 
